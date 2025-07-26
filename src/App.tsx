@@ -1030,7 +1030,9 @@ function App() {
         // Upload file to backend for transcription
         const formData = new FormData()
         formData.append("file", audioFile)
-        const response = await fetch("http://localhost:3001/api/transcribe", {
+        const backendUrl =
+          process.env.REACT_APP_BACKEND_URL || "http://localhost:3001"
+        const response = await fetch(`${backendUrl}/api/transcribe`, {
           method: "POST",
           body: formData,
         })
