@@ -1331,17 +1331,18 @@ function App() {
             ) : questions.length > 0 ? (
               <div className="questions-container">
                 {questions.map((q, idx) => (
-                  <QuestionResponse
-                    key={idx}
-                    questionIndex={idx}
-                    question={q}
-                    activeInputType={activeInputTypes[idx] || ""}
-                    setActiveInputType={setActiveInputType}
-                    saveResponse={saveResponse}
-                    getResponse={getResponse}
-                    supportedAudioTypes={supportedAudioTypes}
-                    supportedImageTypes={supportedImageTypes}
-                  />
+                  <React.Fragment key={idx}>
+                    <QuestionResponse
+                      questionIndex={idx}
+                      question={q}
+                      activeInputType={activeInputTypes[idx] || ""}
+                      setActiveInputType={setActiveInputType}
+                      saveResponse={saveResponse}
+                      getResponse={getResponse}
+                      supportedAudioTypes={supportedAudioTypes}
+                      supportedImageTypes={supportedImageTypes}
+                    />
+                  </React.Fragment>
                 ))}
               </div>
             ) : (
