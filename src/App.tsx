@@ -516,6 +516,7 @@ function QuestionResponse({
   const [imageFile, setImageFile] = useState(null)
   const [isRecording, setIsRecording] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [recordedChunks, setRecordedChunks] = useState([])
 
   const response = getResponse(questionIndex)
