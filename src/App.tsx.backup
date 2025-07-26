@@ -1,0 +1,299 @@
+import React, { useState } from "react"
+import "./App.css"
+
+function extractSummary(text: string): string[] {
+  if (!text.trim()) return []
+  // Split into sentences and clean them
+  const sentences = text.match(/[^.!?\n]+[.!?\n]+/g) || [text]
+  const cleanSentences = sentences
+    .map((s) => s.trim())
+    .filter((s) => s.length > 10)
+  if (cleanSentences.length === 0) return []
+  // Look for key phrases that indicate important content
+  const keyPhrases = [
+    "learned",
+    "realized",
+    "discovered",
+    "found",
+    "understood",
+    "figured out",
+    "challenging",
+    "difficult",
+    "struggled",
+    "overcame",
+    "succeeded",
+    "important",
+    "significant",
+    "key",
+    "main",
+    "primary",
+    "experience",
+    "situation",
+    "problem",
+    "solution",
+    "approach",
+    "feel",
+    "felt",
+    "think",
+    "thought",
+    "believe",
+    "realize",
+  ]
+  // Score sentences based on key phrases and length
+  const scoredSentences = cleanSentences.map((sentence) => {
+    const lowerSentence = sentence.toLowerCase()
+    let score = 0
+    keyPhrases.forEach((phrase) => {
+      if (lowerSentence.includes(phrase)) {
+        score += 2
+      }
+    })
+    // Prefer medium-length sentences (not too short, not too long)
+    const wordCount = sentence.split(" ").length
+    if (wordCount >= 8 && wordCount <= 25) {
+      score += 1
+    }
+    // Bonus for sentences that start with reflection words
+    const reflectionStarters = [
+      "i learned",
+      "i realized",
+      "i discovered",
+      "i found",
+      "i understood",
+    ]
+    reflectionStarters.forEach((starter) => {
+      if (lowerSentence.startsWith(starter)) {
+        score += 3
+      }
+    })
+    return { sentence, score }
+  })
+  // Sort by score and take top 3-4 sentences
+  const topSentences = scoredSentences
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.min(4, cleanSentences.length))
+    .map((item) => item.sentence)
+  // If no high-scoring sentences, fall back to first few meaningful sentences
+  if (topSentences.length === 0 || topSentences.every((s) => s.length < 15)) {
+    return cleanSentences.slice(0, 3).filter((s) => s.length > 15)
+  }
+  return topSentences
+}
+
+function generateQuestions(summary: string[]): string[] {
+  if (summary.length === 0) return []
+  // Analyze summary content to generate more relevant questions
+  const summaryText = summary.join(" ").toLowerCase()
+  const questions: string[] = []
+  // Question 1: Always ask about learning/insights
+  questions.push("What stands out to you about this experience?")
+  // Question 2: Based on content analysis
+  if (
+    summaryText.includes("learned") ||
+    summaryText.includes("realized") ||
+    summaryText.includes("discovered")
+  ) {
+    questions.push("How might you apply what you learned in future situations?")
+  } else if (
+    summaryText.includes("challenging") ||
+    summaryText.includes("difficult") ||
+    summaryText.includes("struggled")
+  ) {
+    questions.push(
+      "What strategies helped you overcome the challenges you faced?"
+    )
+  } else {
+    questions.push(
+      "How might you approach this situation differently next time?"
+    )
+  }
+  // Question 3: Reflection question
+  if (summaryText.includes("feel") || summaryText.includes("felt")) {
+    questions.push(
+      "How did your emotions influence your decision-making process?"
+    )
+  } else {
+    questions.push("What did you learn about yourself through this reflection?")
+  }
+  return questions
+}
+
+function App() {
+  const [input, setInput] = useState("")
+  const [audioFile, setAudioFile] = useState(null)
+  const [transcript, setTranscript] = useState("")
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [error, setError] = useState("")
+  const summary = extractSummary(transcript)
+  const questions = generateQuestions(summary)
+
+  const supportedAudioTypes = [
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".flac",
+    ".amr",
+    ".wma",
+    ".mp4",
+  ]
+
+  const supportedVideoTypes = [
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".wmv",
+    ".flv",
+    ".webm",
+  ]
+
+  const handleAudioUpload = (event: any) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const ext = file.name.split(".").pop()?.toLowerCase()
+      const isAudioSupported =
+        ext && supportedAudioTypes.some((type) => type.replace(".", "") === ext)
+      const isVideoSupported =
+        ext && supportedVideoTypes.some((type) => type.replace(".", "") === ext)
+
+      if (!isAudioSupported && !isVideoSupported) {
+        alert("Unsupported file format. Please upload audio or video files.")
+        event.target.value = ""
+        setAudioFile(null)
+        return
+      }
+      setAudioFile(file)
+      setError("")
+      // Reset transcript when new file is uploaded
+      setTranscript("")
+      console.log("File uploaded:", file.name)
+    }
+  }
+
+  const handleConvertToTranscript = async () => {
+    setIsTranscribing(true)
+    setError("")
+
+    try {
+      if (audioFile) {
+        // Upload file to backend for transcription
+        const formData = new FormData()
+        formData.append("file", audioFile)
+
+        const response = await fetch("http://localhost:3001/api/transcribe", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to transcribe file")
+        }
+
+        const data = await response.json()
+        setTranscript(data.transcript)
+        console.log("Transcription completed:", data)
+      } else if (input.trim()) {
+        // Use the text input as transcript
+        setTranscript(input)
+      } else {
+        setError("Please upload an audio/video file or enter text first.")
+      }
+    } catch (err) {
+      console.error("Transcription error:", err)
+      setError(err instanceof Error ? err.message : "Failed to transcribe file")
+    } finally {
+      setIsTranscribing(false)
+    }
+  }
+
+  return (
+    <div className="reflection-app">
+      <h1>Educational Reflection Tool (Prototype)</h1>
+      <div className="section">
+        <label htmlFor="audio-input">
+          <strong>Simulated Audio Input</strong>
+        </label>
+        <br />
+        <div className="audio-upload-section">
+          <input
+            type="file"
+            id="audio-file"
+            accept=".mp3,.wav,.m4a,.aac,.ogg,.flac,.amr,.wma,.mp4,.mov,.avi,.mkv,.wmv,.flv,.webm,audio/*,video/*"
+            onChange={handleAudioUpload}
+            className="audio-file-input"
+          />
+          <label htmlFor="audio-file" className="audio-file-label">
+            📁 Upload Audio/Video File
+          </label>
+          {audioFile && (
+            <div className="audio-file-info">
+              🎵 {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(2)}{" "}
+              MB)
+            </div>
+          )}
+        </div>
+        <div className="or-divider">— or —</div>
+        <textarea
+          id="audio-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Paste or type a paragraph as if it were spoken by a student..."
+          rows={5}
+        />
+        <button
+          onClick={handleConvertToTranscript}
+          disabled={isTranscribing || (!audioFile && !input.trim())}
+          className="convert-button"
+        >
+          {isTranscribing ? "🔄 Converting..." : "🎤 Convert to Transcript"}
+        </button>
+        {error && <div className="error-message">❌ {error}</div>}
+      </div>
+      <div className="section">
+        <strong>Transcript</strong>
+        <div className="transcript-box">
+          {transcript ? (
+            transcript
+          ) : (
+            <span className="placeholder">
+              (Click "Convert to Transcript" to generate transcript)
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="section">
+        <strong>Structured Summary</strong>
+        {summary.length > 0 ? (
+          <ul className="summary-list">
+            {summary.map((point, idx) => (
+              <li key={idx}>{point}</li>
+            ))}
+          </ul>
+        ) : (
+          <div className="placeholder">
+            (Key points will appear here after transcript is generated)
+          </div>
+        )}
+      </div>
+      <div className="section">
+        <strong>Reflective Questions</strong>
+        {questions.length > 0 ? (
+          <ul className="questions-list">
+            {questions.map((q, idx) => (
+              <li key={idx}>{q}</li>
+            ))}
+          </ul>
+        ) : (
+          <div className="placeholder">
+            (Questions will appear here after transcript is generated)
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default App
