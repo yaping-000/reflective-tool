@@ -1339,45 +1339,16 @@ function App() {
           setProcessingProgress(progress)
         }
 
-        // For video files, extract audio first
+        // For video files, send directly to backend for audio extraction
         if (inputType === "video") {
-          console.log("Extracting audio from video...")
-          const audioBlob = await extractAudioFromVideo(file, updateProgress)
-
-          // Check if audio extraction was successful
-          if (audioBlob.size === 0) {
-            console.warn("Audio extraction failed, using original video file")
-            updateProgress(
-              "Processing",
-              "Audio extraction failed, using original file..."
-            )
-            processedFile = file
-          } else {
-            // Convert WebM to WAV for better compatibility
-            updateProgress("Processing", "Converting to WAV format...")
-            try {
-              const wavBlob = await convertToWav(audioBlob)
-              processedFile = new File([wavBlob], `${file.name}_audio.wav`, {
-                type: "audio/wav",
-              })
-              console.log(
-                "Audio extracted and converted:",
-                processedFile.size,
-                "bytes"
-              )
-            } catch (error) {
-              console.error("WAV conversion failed:", error)
-              updateProgress(
-                "Processing",
-                "WAV conversion failed, using original audio..."
-              )
-              // Fallback to original audio blob
-              processedFile = new File([audioBlob], `${file.name}_audio.webm`, {
-                type: "audio/webm",
-              })
-              console.log("Using fallback audio:", processedFile.size, "bytes")
-            }
-          }
+          console.log(
+            "Sending video file directly to backend for audio extraction..."
+          )
+          updateProgress(
+            "Processing",
+            "Sending video to backend for audio extraction..."
+          )
+          processedFile = file // Use original video file
         }
 
         // Compress audio if it's still too large (over 3MB to be safe)

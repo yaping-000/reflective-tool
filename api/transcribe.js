@@ -1,8 +1,10 @@
 import express from "express"
 import multer from "multer"
-import { createReadStream, unlinkSync, statSync } from "fs"
+import { createReadStream, unlinkSync, statSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
+import { join } from "path"
 import OpenAI from "openai"
+import ffmpeg from "fluent-ffmpeg"
 
 const app = express()
 
@@ -18,6 +20,31 @@ const upload = multer({
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+// Helper function to extract audio from video
+function extractAudioFromVideo(videoPath) {
+  return new Promise((resolve, reject) => {
+    const audioPath = join(tmpdir(), `audio_${Date.now()}.wav`)
+
+    console.log(`Extracting audio from video: ${videoPath}`)
+    console.log(`Output audio path: ${audioPath}`)
+
+    ffmpeg(videoPath)
+      .toFormat("wav")
+      .audioCodec("pcm_s16le")
+      .audioChannels(1)
+      .audioFrequency(16000)
+      .on("end", () => {
+        console.log("Audio extraction completed")
+        resolve(audioPath)
+      })
+      .on("error", (err) => {
+        console.error("Error extracting audio:", err)
+        reject(err)
+      })
+      .save(audioPath)
+  })
+}
 
 // Helper function to transcribe audio
 async function transcribeAudio(audioPath) {
@@ -66,18 +93,42 @@ app.post("/api/transcribe", upload.single("file"), async (req, res) => {
     console.log(`Processing ${file.mimetype} file: ${file.originalname}`)
     console.log(`File size: ${(file.size / 1024 / 1024).toFixed(2)} MB`)
 
-    // Transcribe the audio (already processed on frontend)
+    let audioPath = file.path
+    let isVideoFile = false
+
+    // Check if it's a video file
+    const videoExtensions = ["mp4", "avi", "mov", "mkv", "webm", "flv", "wmv"]
+    const fileExtension = file.originalname.split(".").pop()?.toLowerCase()
+
+    if (videoExtensions.includes(fileExtension)) {
+      console.log("Detected video file, extracting audio...")
+      isVideoFile = true
+      try {
+        audioPath = await extractAudioFromVideo(file.path)
+        console.log(`Audio extracted to: ${audioPath}`)
+      } catch (error) {
+        console.error("Failed to extract audio from video:", error)
+        return res
+          .status(500)
+          .json({ error: "Failed to extract audio from video" })
+      }
+    }
+
+    // Transcribe the audio
     console.log("Transcribing audio...")
     console.log(`File type: ${file.mimetype}`)
-    console.log(`File extension: ${file.originalname.split(".").pop()}`)
+    console.log(`File extension: ${fileExtension}`)
 
-    const transcript = await transcribeAudio(file.path)
+    const transcript = await transcribeAudio(audioPath)
 
     console.log(`Final transcript length: ${transcript.length} characters`)
     console.log(`Transcript preview: "${transcript.substring(0, 200)}..."`)
 
     // Clean up files
     unlinkSync(file.path)
+    if (isVideoFile && audioPath !== file.path) {
+      unlinkSync(audioPath)
+    }
 
     res.json({ transcript })
   } catch (error) {
