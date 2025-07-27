@@ -589,6 +589,29 @@ function compressAudio(
   })
 }
 
+// Helper function to convert any audio blob to WAV format
+function convertToWav(audioBlob: Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const audioContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)()
+    const fileReader = new FileReader()
+
+    fileReader.onload = async (e) => {
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+        const wavBlob = audioBufferToWav(audioBuffer)
+        resolve(wavBlob)
+      } catch (error) {
+        reject(error)
+      }
+    }
+
+    fileReader.onerror = reject
+    fileReader.readAsArrayBuffer(audioBlob)
+  })
+}
+
 // Helper function to convert AudioBuffer to WAV Blob
 function audioBufferToWav(buffer: AudioBuffer): Blob {
   const length = buffer.length
@@ -1257,10 +1280,17 @@ function App() {
             )
             processedFile = file
           } else {
-            processedFile = new File([audioBlob], `${file.name}_audio.webm`, {
-              type: "audio/webm",
+            // Convert WebM to WAV for better compatibility
+            updateProgress("Processing", "Converting to WAV format...")
+            const wavBlob = await convertToWav(audioBlob)
+            processedFile = new File([wavBlob], `${file.name}_audio.wav`, {
+              type: "audio/wav",
             })
-            console.log("Audio extracted:", processedFile.size, "bytes")
+            console.log(
+              "Audio extracted and converted:",
+              processedFile.size,
+              "bytes"
+            )
           }
         }
 
