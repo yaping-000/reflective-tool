@@ -1,210 +1,267 @@
 # Educational Reflection Tool
 
-A web application that processes audio/video files and generates transcripts, summaries, and reflective questions for educational purposes.
+A comprehensive AI-powered web application that processes audio/video files and text to generate transcripts, structured summaries, quiz questions, and interactive mind maps for educational purposes.
 
-## Features
+## 🚀 Features
 
-- **Audio/Video Upload**: Support for multiple audio and video formats
-- **Speech-to-Text**: Real-time transcription using OpenAI Whisper
-- **Audio Extraction**: Automatic audio extraction from video files using FFmpeg
-- **Structured Summary**: Key points extraction from transcripts
-- **Reflective Questions**: AI-generated questions based on content
+- **Multi-Modal Input**: Support for audio, video, and text input
+- **AI-Powered Processing**:
+  - Speech-to-text transcription using OpenAI Whisper
+  - Structured summaries with key themes and insights
+  - Quiz questions to test understanding
+  - Interactive mind maps for visual learning
+- **Client-Side Audio Processing**: Efficient audio extraction and compression
+- **Interactive Responses**: Text, audio, and image responses to questions
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
 
-## Supported File Formats
+## 📁 Supported File Formats
 
 ### Audio Formats
 
-- MP3 (.mp3)
-- WAV (.wav)
-- M4A (.m4a)
-- AAC (.aac)
-- OGG (.ogg)
-- FLAC (.flac)
-- AMR (.amr)
-- WMA (.wma)
+- MP3 (.mp3), WAV (.wav), M4A (.m4a), AAC (.aac)
+- OGG (.ogg), FLAC (.flac), AMR (.amr), WMA (.wma)
 
 ### Video Formats
 
-- MP4 (.mp4)
-- MOV (.mov)
-- AVI (.avi)
-- MKV (.mkv)
-- WMV (.wmv)
-- FLV (.flv)
-- WebM (.webm)
+- MP4 (.mp4), MOV (.mov), AVI (.avi), MKV (.mkv)
+- WMV (.wmv), FLV (.flv), WebM (.webm)
 
-## Setup Instructions
+## 🛠️ Local Development Setup
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
-- npm or yarn
-- OpenAI API key
+- **Node.js** (v18 or higher recommended)
+- **npm** or **yarn**
+- **OpenAI API key** (for transcription and AI features)
+- **Git** (to clone the repository)
 
-### Backend Setup
-
-1. **Navigate to backend directory:**
-
-   ```bash
-   cd backend
-   ```
-
-2. **Install dependencies:**
-
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables:**
-
-   ```bash
-   cp env.example .env
-   ```
-
-   Edit `.env` and add your OpenAI API key:
-
-   ```
-   OPENAI_API_KEY=your_openai_api_key_here
-   PORT=3001
-   ```
-
-4. **Start the backend server:**
-
-   ```bash
-   npm run dev
-   ```
-
-   The backend will run on `http://localhost:3001`
-
-### Frontend Setup
-
-1. **Navigate to the main directory:**
-
-   ```bash
-   cd ..
-   ```
-
-2. **Install dependencies:**
-
-   ```bash
-   npm install
-   ```
-
-3. **Start the frontend development server:**
-
-   ```bash
-   npm start
-   ```
-
-   The frontend will run on `http://localhost:3000`
-
-## Usage
-
-1. **Upload Audio/Video File:**
-
-   - Click "📁 Upload Audio/Video File"
-   - Select a supported audio or video file
-   - Or type/paste text directly
-
-2. **Generate Transcript:**
-
-   - Click "🎤 Convert to Transcript"
-   - For files: Audio will be extracted from video if needed, then transcribed using Whisper
-   - For text: Direct use as transcript
-
-3. **View Results:**
-   - **Transcript**: Shows the transcribed text
-   - **Structured Summary**: Key bullet points extracted from transcript
-   - **Reflective Questions**: AI-generated questions for reflection
-
-## API Endpoints
-
-- `GET /api/health` - Health check
-- `POST /api/transcribe` - Upload and transcribe audio/video files
-
-## Technical Stack
-
-### Backend
-
-- **Node.js** with Express
-- **Multer** for file uploads
-- **FFmpeg** for audio/video processing
-- **OpenAI Whisper** for speech-to-text
-- **CORS** for cross-origin requests
-
-### Frontend
-
-- **React** with TypeScript
-- **Fetch API** for backend communication
-- **CSS** for styling
-
-## Environment Variables
-
-| Variable         | Description                              | Required |
-| ---------------- | ---------------------------------------- | -------- |
-| `OPENAI_API_KEY` | OpenAI API key for Whisper transcription | Yes      |
-| `PORT`           | Backend server port (default: 3001)      | No       |
-
-## File Size Limits
-
-- Maximum file size: 100MB
-- Supported formats are validated on both frontend and backend
-
-## Error Handling
-
-- File format validation
-- File size limits
-- Network error handling
-- Transcription error handling
-- User-friendly error messages
-
-## Development
-
-### Backend Development
+### Step 1: Clone and Navigate
 
 ```bash
-cd backend
-npm run dev  # Uses nodemon for auto-restart
+git clone <repository-url>
+cd reflective-tool
 ```
 
-### Frontend Development
+### Step 2: Install Dependencies
 
 ```bash
-npm start    # React development server
+npm install
 ```
 
-## Production Build
+### Step 3: Set Up Environment Variables
 
-### Frontend
+Create a `.env` file in the project root:
 
 ```bash
-npm run build
+touch .env
 ```
 
-### Backend
+Add the following environment variables to `.env`:
+
+```env
+# OpenAI API Key (Required)
+REACT_APP_OPENAI_API_KEY=your_openai_api_key_here
+
+# Backend URL (Required for local development)
+REACT_APP_BACKEND_URL=http://localhost:3001/api
+```
+
+**Important Notes:**
+
+- Replace `your_openai_api_key_here` with your actual OpenAI API key
+- Get your API key from: https://platform.openai.com/api-keys
+- The `.env` file should be in the project root (same level as `package.json`)
+
+### Step 4: Start the Development Server
+
+Due to Node.js version compatibility, you need to set the OpenSSL legacy provider:
 
 ```bash
-cd backend
+export NODE_OPTIONS=--openssl-legacy-provider
 npm start
 ```
 
-## Troubleshooting
+**Alternative (one-liner):**
 
-1. **"Failed to transcribe file" error:**
+```bash
+NODE_OPTIONS=--openssl-legacy-provider npm start
+```
 
-   - Check your OpenAI API key is valid
-   - Ensure the file format is supported
-   - Check file size is under 100MB
+The application will open automatically at: http://localhost:3000
 
-2. **CORS errors:**
+### Step 5: Verify Setup
 
-   - Ensure backend is running on port 3001
-   - Check frontend is making requests to correct URL
+1. **Check the homepage loads** without errors
+2. **Verify environment variables** are loaded (no console errors about missing API keys)
+3. **Test file upload** with a small audio/video file
 
-3. **FFmpeg errors:**
-   - FFmpeg is included via npm package
-   - No system installation required
+## 🎯 Usage Guide
 
-## License
+### 1. Choose Input Type
 
-ISC
+- **Audio**: Upload audio files for transcription
+- **Video**: Upload video files (audio will be extracted automatically)
+- **Text**: Type or paste text directly
+
+### 2. Process Content
+
+- **For Audio/Video**: Click "Convert to Transcript"
+- **For Text**: Click "Process Text"
+
+### 3. Explore Outputs
+
+- **Transcript**: View the transcribed text (hidden for text input)
+- **Summary/Insights**: AI-generated structured summary with themes
+- **Questions/Quizzes**: AI-generated questions to test understanding
+- **Mind Map**: Interactive hierarchical visualization
+
+### 4. Interactive Features
+
+- **Respond to Questions**: Use text, audio recording, or image upload
+- **Navigate Mind Map**: Zoom, pan, and explore the visual structure
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### 1. "OpenSSL Legacy Provider" Error
+
+```bash
+Error: error:0308010C:digital envelope routines::unsupported
+```
+
+**Solution:**
+
+```bash
+export NODE_OPTIONS=--openssl-legacy-provider
+npm start
+```
+
+#### 2. "Module not found" Errors
+
+```bash
+npm error code ENOENT
+npm error syscall open
+npm error path /path/to/package.json
+```
+
+**Solution:** Ensure you're in the correct directory:
+
+```bash
+pwd  # Should show: /path/to/reflective-tool
+ls   # Should show package.json, src/, etc.
+```
+
+#### 3. API Key Errors
+
+```bash
+OpenAIError: The OPENAI_API_KEY environment variable is missing or empty
+```
+
+**Solution:**
+
+1. Check `.env` file exists in project root
+2. Verify API key is correct and has credits
+3. Restart the development server after adding `.env`
+
+#### 4. Single Word Transcripts
+
+If you're getting only "you" or single words in transcripts:
+
+**Solution:**
+
+1. Check browser console for audio extraction logs
+2. Try a different audio/video file
+3. Ensure file has clear audio content
+4. Check file size (should be under 10MB)
+
+#### 5. CORS Errors
+
+```bash
+Access to fetch at 'http://localhost:3001/api/transcribe' from origin 'http://localhost:3000' has been blocked by CORS policy
+```
+
+**Solution:** The app now uses Vercel serverless functions, so this shouldn't occur. If it does, check your `REACT_APP_BACKEND_URL` environment variable.
+
+### Performance Tips
+
+- **File Size**: Keep files under 10MB for best performance
+- **Audio Quality**: Clear audio produces better transcripts
+- **Browser**: Use Chrome for best compatibility
+- **Network**: Stable internet connection required for AI processing
+
+## 🏗️ Project Structure
+
+```
+reflective-tool/
+├── src/                    # React frontend source code
+│   ├── App.tsx            # Main application component
+│   ├── App.css            # Styles
+│   └── index.tsx          # Entry point
+├── api/                   # Vercel serverless functions
+│   └── transcribe.js      # Backend API for transcription
+├── public/                # Static assets
+├── package.json           # Dependencies and scripts
+├── .env                   # Environment variables (create this)
+└── README.md             # This file
+```
+
+## 🔑 Environment Variables Reference
+
+| Variable                   | Description                                      | Required    | Example                     |
+| -------------------------- | ------------------------------------------------ | ----------- | --------------------------- |
+| `REACT_APP_OPENAI_API_KEY` | OpenAI API key for transcription and AI features | Yes         | `sk-...`                    |
+| `REACT_APP_BACKEND_URL`    | Backend API URL                                  | Yes (local) | `http://localhost:3001/api` |
+
+## 🚀 Deployment
+
+### Vercel Deployment
+
+The app is configured for Vercel deployment:
+
+1. **Connect to Vercel** from your GitHub repository
+2. **Set Environment Variables** in Vercel dashboard:
+   - `REACT_APP_OPENAI_API_KEY`
+   - `REACT_APP_BACKEND_URL` (Vercel will provide this)
+   - `OPENAI_API_KEY` (for serverless functions)
+3. **Deploy** - Vercel will automatically build and deploy
+
+### Local Production Build
+
+```bash
+npm run build
+serve -s build
+```
+
+## 📝 Development Notes
+
+- **Audio Processing**: Uses client-side MediaRecorder API for compatibility
+- **File Compression**: Automatic compression for files over 3MB
+- **Error Handling**: Comprehensive error handling with user-friendly messages
+- **Responsive Design**: Mobile-first approach with responsive UI
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the ISC License.
+
+## 🆘 Support
+
+If you encounter issues:
+
+1. Check the troubleshooting section above
+2. Review browser console for error messages
+3. Verify environment variables are set correctly
+4. Test with a simple audio file first
+5. Check OpenAI API key has sufficient credits
+
+---
+
+**Happy Learning! 🎓**
