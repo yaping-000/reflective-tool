@@ -1339,16 +1339,117 @@ function App() {
           setProcessingProgress(progress)
         }
 
-        // For video files, send directly to backend for audio extraction
+        // For video files, extract audio using a more reliable client-side method
         if (inputType === "video") {
-          console.log(
-            "Sending video file directly to backend for audio extraction..."
-          )
-          updateProgress(
-            "Processing",
-            "Sending video to backend for audio extraction..."
-          )
-          processedFile = file // Use original video file
+          console.log("Extracting audio from video using improved method...")
+          updateProgress("Processing", "Extracting audio from video...")
+
+          try {
+            // Use a simpler approach - create an audio element and capture its stream
+            const video = document.createElement("video")
+            video.muted = true
+            video.volume = 0
+
+            const audioContext = new (window.AudioContext ||
+              (window as any).webkitAudioContext)()
+            const audioDestination = audioContext.createMediaStreamDestination()
+
+            video.onloadedmetadata = () => {
+              const source = audioContext.createMediaElementSource(video)
+              source.connect(audioDestination)
+
+              // Use a more compatible audio format
+              const audioRecorder = new MediaRecorder(audioDestination.stream, {
+                mimeType: MediaRecorder.isTypeSupported("audio/webm")
+                  ? "audio/webm"
+                  : "audio/mp4",
+              })
+
+              const audioChunks: Blob[] = []
+
+              audioRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                  audioChunks.push(e.data)
+                  updateProgress(
+                    "Processing",
+                    `Capturing audio... (${audioChunks.length} chunks)`
+                  )
+                }
+              }
+
+              audioRecorder.onstop = () => {
+                if (audioChunks.length > 0) {
+                  const audioBlob = new Blob(audioChunks, {
+                    type: "audio/webm",
+                  })
+                  console.log("Audio extracted:", audioBlob.size, "bytes")
+
+                  // Convert to WAV for better compatibility
+                  updateProgress("Processing", "Converting to WAV format...")
+                  convertToWav(audioBlob)
+                    .then((wavBlob) => {
+                      processedFile = new File(
+                        [wavBlob],
+                        `${file.name}_audio.wav`,
+                        {
+                          type: "audio/wav",
+                        }
+                      )
+                      console.log(
+                        "Audio processed:",
+                        processedFile.size,
+                        "bytes"
+                      )
+                      updateProgress("Processing", "Audio extraction complete!")
+                    })
+                    .catch((error) => {
+                      console.error("WAV conversion failed:", error)
+                      // Fallback to original audio
+                      processedFile = new File(
+                        [audioBlob],
+                        `${file.name}_audio.webm`,
+                        {
+                          type: "audio/webm",
+                        }
+                      )
+                      updateProgress(
+                        "Processing",
+                        "Using fallback audio format..."
+                      )
+                    })
+                } else {
+                  console.warn("No audio captured, using original video")
+                  processedFile = file
+                  updateProgress(
+                    "Processing",
+                    "No audio detected, using original file..."
+                  )
+                }
+              }
+
+              audioRecorder.start(500) // Capture every 500ms
+              video.play()
+
+              // Stop recording when video ends
+              video.onended = () => audioRecorder.stop()
+
+              // Fallback timeout
+              setTimeout(() => {
+                if (audioRecorder.state === "recording") {
+                  audioRecorder.stop()
+                }
+              }, video.duration * 1000 + 2000)
+            }
+
+            video.src = URL.createObjectURL(file)
+          } catch (error) {
+            console.error("Audio extraction failed:", error)
+            updateProgress(
+              "Processing",
+              "Audio extraction failed, using original file..."
+            )
+            processedFile = file
+          }
         }
 
         // Compress audio if it's still too large (over 3MB to be safe)
