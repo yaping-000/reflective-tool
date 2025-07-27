@@ -440,17 +440,17 @@ Content to analyze:
 function extractAudioFromVideo(videoFile: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video")
-    const canvas = document.createElement("canvas")
     const audioContext = new (window.AudioContext ||
       (window as any).webkitAudioContext)()
 
     video.onloadedmetadata = () => {
-      canvas.width = 1
-      canvas.height = 1
+      // Create a silent audio destination (no speakers)
       const audioDestination = audioContext.createMediaStreamDestination()
       const source = audioContext.createMediaElementSource(video)
+
+      // Only connect to the destination, NOT to speakers
       source.connect(audioDestination)
-      source.connect(audioContext.destination)
+      // Remove this line: source.connect(audioContext.destination)
 
       const audioRecorder = new MediaRecorder(audioDestination.stream)
       const audioChunks: Blob[] = []
@@ -465,6 +465,10 @@ function extractAudioFromVideo(videoFile: File): Promise<Blob> {
       }
 
       audioRecorder.start()
+
+      // Set video to muted to prevent any sound
+      video.muted = true
+      video.volume = 0
       video.play()
 
       video.onended = () => {
