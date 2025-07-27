@@ -27,25 +27,17 @@ async function transcribeAudio(audioPath) {
 
     console.log(`Audio file size: ${fileSizeInMB.toFixed(2)} MB`)
 
-    if (fileSizeInMB > 24) {
-      console.log("File too large, compressing audio...")
-      const compressedPath = audioPath.replace(/\.[^/.]+$/, "_compressed.m4a")
-      await compressAudio(audioPath, compressedPath)
+    // Since files are pre-processed on frontend, just transcribe directly
+    const transcription = await openai.audio.transcriptions.create({
+      file: createReadStream(audioPath),
+      model: "whisper-1",
+    })
 
-      const transcription = await openai.audio.transcriptions.create({
-        file: createReadStream(compressedPath),
-        model: "whisper-1",
-      })
-
-      unlinkSync(compressedPath) // Clean up compressed file
-      return transcription.text
-    } else {
-      const transcription = await openai.audio.transcriptions.create({
-        file: createReadStream(audioPath),
-        model: "whisper-1",
-      })
-      return transcription.text
-    }
+    console.log(
+      "Transcription result:",
+      transcription.text.substring(0, 100) + "..."
+    )
+    return transcription.text
   } catch (error) {
     console.error("Error transcribing audio:", error)
     throw error
@@ -72,10 +64,17 @@ app.post("/api/transcribe", upload.single("file"), async (req, res) => {
 
     const file = req.file
     console.log(`Processing ${file.mimetype} file: ${file.originalname}`)
+    console.log(`File size: ${(file.size / 1024 / 1024).toFixed(2)} MB`)
 
     // Transcribe the audio (already processed on frontend)
     console.log("Transcribing audio...")
+    console.log(`File type: ${file.mimetype}`)
+    console.log(`File extension: ${file.originalname.split(".").pop()}`)
+
     const transcript = await transcribeAudio(file.path)
+
+    console.log(`Final transcript length: ${transcript.length} characters`)
+    console.log(`Transcript preview: "${transcript.substring(0, 200)}..."`)
 
     // Clean up files
     unlinkSync(file.path)
