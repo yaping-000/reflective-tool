@@ -22,6 +22,11 @@ Your task:
 - Do NOT generate multiple choice questions. Do NOT ask for personal reflection.
 - Focus on comprehension, recall, and application.
 
+Format your response as a simple list with each question on a new line, ending with a question mark. For example:
+1. What is the main concept discussed in this material?
+2. How does this concept apply to real-world situations?
+3. What are the key differences between the approaches mentioned?
+
 Return only the final quiz questions as a list.`
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -58,6 +63,7 @@ Return only the final quiz questions as a list.`
 
     const content = data.choices[0].message.content
     console.log("ChatGPT response content:", content)
+    console.log("Raw content length:", content.length)
 
     // Parse the response to extract questions
     const questions = content
@@ -69,7 +75,9 @@ Return only the final quiz questions as a list.`
           .replace(/^[-*]\s*/, "")
           .trim()
       )
-      .filter((line) => line.length > 10 && line.endsWith("?"))
+      .filter(
+        (line) => line.length > 10 && (line.endsWith("?") || line.includes("?"))
+      )
 
     console.log("Parsed questions:", questions)
 

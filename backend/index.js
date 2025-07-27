@@ -96,14 +96,62 @@ function extractAudioFromVideo(inputPath, outputPath) {
   })
 }
 
+// Helper function to compress audio to reduce file size
+function compressAudio(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .audioCodec("aac") // Use AAC instead of MP3
+      .audioBitrate("64k") // Low bitrate to reduce file size
+      .audioChannels(1) // Mono audio
+      .audioFrequency(16000) // Lower frequency
+      .on("end", () => {
+        console.log("Audio compression completed")
+        resolve(outputPath)
+      })
+      .on("error", (err) => {
+        console.error("Error compressing audio:", err)
+        reject(err)
+      })
+      .save(outputPath)
+  })
+}
+
 // Helper function to transcribe audio using OpenAI Whisper
 async function transcribeAudio(audioPath) {
   try {
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(audioPath),
-      model: "whisper-1",
-    })
-    return transcription.text
+    // Check file size first
+    const stats = fs.statSync(audioPath)
+    const fileSizeInBytes = stats.size
+    const fileSizeInMB = fileSizeInBytes / (1024 * 1024)
+
+    console.log(`Audio file size: ${fileSizeInMB.toFixed(2)} MB`)
+
+    // If file is larger than 24MB, compress it
+    if (fileSizeInMB > 24) {
+      console.log("File too large, compressing audio...")
+      const compressedPath = audioPath.replace(
+        path.extname(audioPath),
+        "_compressed.m4a"
+      )
+      await compressAudio(audioPath, compressedPath)
+
+      // Use compressed file for transcription
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(compressedPath),
+        model: "whisper-1",
+      })
+
+      // Clean up compressed file
+      fs.unlinkSync(compressedPath)
+      return transcription.text
+    } else {
+      // Use original file if it's small enough
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioPath),
+        model: "whisper-1",
+      })
+      return transcription.text
+    }
   } catch (error) {
     console.error("Error transcribing audio:", error)
     throw error
