@@ -457,26 +457,47 @@ function extractAudioFromVideo(
 
       // Only connect to the destination, NOT to speakers
       source.connect(audioDestination)
-      // Remove this line: source.connect(audioContext.destination)
 
-      const audioRecorder = new MediaRecorder(audioDestination.stream)
+      const audioRecorder = new MediaRecorder(audioDestination.stream, {
+        mimeType: "audio/webm;codecs=opus",
+      })
       const audioChunks: Blob[] = []
 
       audioRecorder.ondataavailable = (e) => {
-        audioChunks.push(e.data)
-        onProgress?.(
-          "Extracting audio",
-          `Processing... (${audioChunks.length} chunks)`
-        )
+        if (e.data.size > 0) {
+          audioChunks.push(e.data)
+          onProgress?.(
+            "Extracting audio",
+            `Processing... (${audioChunks.length} chunks)`
+          )
+        }
       }
 
       audioRecorder.onstop = () => {
         onProgress?.("Extracting audio", "Finalizing...")
-        const audioBlob = new Blob(audioChunks, { type: "audio/wav" })
+        if (audioChunks.length === 0) {
+          onProgress?.(
+            "Extracting audio",
+            "No audio data captured, using original file..."
+          )
+          resolve(videoFile)
+          return
+        }
+        const audioBlob = new Blob(audioChunks, { type: "audio/webm" })
+        console.log("Audio extracted successfully:", audioBlob.size, "bytes")
         resolve(audioBlob)
       }
 
-      audioRecorder.start()
+      audioRecorder.onerror = (event) => {
+        console.error("MediaRecorder error:", event)
+        onProgress?.(
+          "Extracting audio",
+          "Error in audio extraction, using original file..."
+        )
+        resolve(videoFile)
+      }
+
+      audioRecorder.start(1000) // Collect data every second
 
       // Set video to muted to prevent any sound
       video.muted = true
@@ -498,9 +519,24 @@ function extractAudioFromVideo(
       video.onended = () => {
         audioRecorder.stop()
       }
+
+      // Fallback: if video ends without stopping recorder, stop it manually
+      setTimeout(() => {
+        if (audioRecorder.state === "recording") {
+          audioRecorder.stop()
+        }
+      }, video.duration * 1000 + 2000) // Add 2 seconds buffer
     }
 
-    video.onerror = reject
+    video.onerror = (error) => {
+      console.error("Video error:", error)
+      onProgress?.(
+        "Loading video",
+        "Error loading video, using original file..."
+      )
+      resolve(videoFile)
+    }
+
     video.src = URL.createObjectURL(videoFile)
   })
 }
@@ -1211,10 +1247,21 @@ function App() {
         if (inputType === "video") {
           console.log("Extracting audio from video...")
           const audioBlob = await extractAudioFromVideo(file, updateProgress)
-          processedFile = new File([audioBlob], `${file.name}_audio.wav`, {
-            type: "audio/wav",
-          })
-          console.log("Audio extracted:", processedFile.size, "bytes")
+
+          // Check if audio extraction was successful
+          if (audioBlob.size === 0) {
+            console.warn("Audio extraction failed, using original video file")
+            updateProgress(
+              "Processing",
+              "Audio extraction failed, using original file..."
+            )
+            processedFile = file
+          } else {
+            processedFile = new File([audioBlob], `${file.name}_audio.webm`, {
+              type: "audio/webm",
+            })
+            console.log("Audio extracted:", processedFile.size, "bytes")
+          }
         }
 
         // Compress audio if it's still too large (over 3MB to be safe)
@@ -1231,6 +1278,13 @@ function App() {
             { type: "audio/wav" }
           )
           console.log("Audio compressed:", processedFile.size, "bytes")
+        }
+
+        // Final validation - ensure file has content
+        if (processedFile.size === 0) {
+          throw new Error(
+            "Processed file has no content. Please try a different file."
+          )
         }
 
         setAudioFile(processedFile)
