@@ -4,13 +4,16 @@
     "NODE_OPTIONS": "--openssl-legacy-provider"
   },
   "rewrites": [
-    { "source": "/static/(.*)", "destination": "/static/$1" },
+    { "source": "/static/js/(.*)", "destination": "/static/js/$1" },
+    { "source": "/static/css/(.*)", "destination": "/static/css/$1" },
+    { "source": "/static/media/(.*)", "destination": "/static/media/$1" },
     { "source": "/favicon.ico", "destination": "/favicon.ico" },
     { "source": "/manifest.json", "destination": "/manifest.json" },
     { "source": "/logo192.png", "destination": "/logo192.png" },
     { "source": "/logo512.png", "destination": "/logo512.png" },
     { "source": "/asset-manifest.json", "destination": "/asset-manifest.json" },
     { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/service-worker.js", "destination": "/service-worker.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
