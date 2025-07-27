@@ -1,9 +1,7 @@
 import express from "express"
 import multer from "multer"
 import { createReadStream, unlinkSync, statSync } from "fs"
-import { join } from "path"
 import { tmpdir } from "os"
-import ffmpeg from "fluent-ffmpeg"
 import OpenAI from "openai"
 
 const app = express()
@@ -12,7 +10,7 @@ const app = express()
 const upload = multer({
   dest: tmpdir(),
   limits: {
-    fileSize: 4 * 1024 * 1024, // 4MB limit for Vercel serverless functions
+    fileSize: 10 * 1024 * 1024, // 10MB limit since files are now pre-processed
   },
 })
 
@@ -20,45 +18,6 @@ const upload = multer({
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
-
-// Helper function to extract audio from video
-function extractAudioFromVideo(inputPath, outputPath) {
-  return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .outputOptions("-vn") // No video
-      .audioCodec("aac")
-      .audioBitrate("128k")
-      .on("end", () => {
-        console.log("Audio extraction completed")
-        resolve(outputPath)
-      })
-      .on("error", (err) => {
-        console.error("Error extracting audio:", err)
-        reject(err)
-      })
-      .save(outputPath)
-  })
-}
-
-// Helper function to compress audio
-function compressAudio(inputPath, outputPath) {
-  return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .audioCodec("aac")
-      .audioBitrate("64k")
-      .audioChannels(1)
-      .audioFrequency(16000)
-      .on("end", () => {
-        console.log("Audio compression completed")
-        resolve(outputPath)
-      })
-      .on("error", (err) => {
-        console.error("Error compressing audio:", err)
-        reject(err)
-      })
-      .save(outputPath)
-  })
-}
 
 // Helper function to transcribe audio
 async function transcribeAudio(audioPath) {
@@ -102,37 +61,24 @@ app.post("/api/transcribe", upload.single("file"), async (req, res) => {
 
     // Check file size
     const fileSizeInMB = req.file.size / (1024 * 1024)
-    if (fileSizeInMB > 4) {
+    if (fileSizeInMB > 10) {
       return res.status(413).json({
         error: "File too large",
         message:
-          "Please upload a file smaller than 4MB. For larger files, consider compressing the video/audio first.",
-        maxSize: "4MB",
+          "Please upload a file smaller than 10MB. The app will automatically compress larger files.",
+        maxSize: "10MB",
       })
     }
 
     const file = req.file
     console.log(`Processing ${file.mimetype} file: ${file.originalname}`)
 
-    let audioPath = file.path
-
-    // Extract audio if it's a video file
-    if (file.mimetype.startsWith("video/")) {
-      console.log("Extracting audio from video...")
-      const audioOutputPath = join(tmpdir(), `${file.filename}_audio.wav`)
-      await extractAudioFromVideo(file.path, audioOutputPath)
-      audioPath = audioOutputPath
-    }
-
-    // Transcribe the audio
+    // Transcribe the audio (already processed on frontend)
     console.log("Transcribing audio...")
-    const transcript = await transcribeAudio(audioPath)
+    const transcript = await transcribeAudio(file.path)
 
     // Clean up files
     unlinkSync(file.path)
-    if (audioPath !== file.path) {
-      unlinkSync(audioPath)
-    }
 
     res.json({ transcript })
   } catch (error) {

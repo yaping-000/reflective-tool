@@ -436,6 +436,138 @@ Content to analyze:
   }
 }
 
+// Helper function to extract audio from video file
+function extractAudioFromVideo(videoFile: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video")
+    const canvas = document.createElement("canvas")
+    const audioContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)()
+    const mediaRecorder = new MediaRecorder(canvas.captureStream())
+    const chunks: Blob[] = []
+
+    video.onloadedmetadata = () => {
+      canvas.width = 1
+      canvas.height = 1
+      const stream = canvas.captureStream()
+      const audioDestination = audioContext.createMediaStreamDestination()
+      const source = audioContext.createMediaElementSource(video)
+      source.connect(audioDestination)
+      source.connect(audioContext.destination)
+
+      const audioRecorder = new MediaRecorder(audioDestination.stream)
+      const audioChunks: Blob[] = []
+
+      audioRecorder.ondataavailable = (e) => {
+        audioChunks.push(e.data)
+      }
+
+      audioRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: "audio/wav" })
+        resolve(audioBlob)
+      }
+
+      audioRecorder.start()
+      video.play()
+
+      video.onended = () => {
+        audioRecorder.stop()
+      }
+    }
+
+    video.onerror = reject
+    video.src = URL.createObjectURL(videoFile)
+  })
+}
+
+// Helper function to compress audio
+function compressAudio(audioBlob: Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const audioContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)()
+    const fileReader = new FileReader()
+
+    fileReader.onload = async (e) => {
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+
+        // Create offline context for processing
+        const offlineContext = new OfflineAudioContext(
+          1, // mono
+          audioBuffer.length,
+          16000 // 16kHz sample rate
+        )
+
+        const source = offlineContext.createBufferSource()
+        source.buffer = audioBuffer
+        source.connect(offlineContext.destination)
+        source.start()
+
+        const renderedBuffer = await offlineContext.startRendering()
+
+        // Convert to WAV format
+        const wavBlob = audioBufferToWav(renderedBuffer)
+        resolve(wavBlob)
+      } catch (error) {
+        reject(error)
+      }
+    }
+
+    fileReader.onerror = reject
+    fileReader.readAsArrayBuffer(audioBlob)
+  })
+}
+
+// Helper function to convert AudioBuffer to WAV Blob
+function audioBufferToWav(buffer: AudioBuffer): Blob {
+  const length = buffer.length
+  const numberOfChannels = buffer.numberOfChannels
+  const sampleRate = buffer.sampleRate
+  const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2)
+  const view = new DataView(arrayBuffer)
+
+  // WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i))
+    }
+  }
+
+  writeString(0, "RIFF")
+  view.setUint32(4, 36 + length * numberOfChannels * 2, true)
+  writeString(8, "WAVE")
+  writeString(12, "fmt ")
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, numberOfChannels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * numberOfChannels * 2, true)
+  view.setUint16(32, numberOfChannels * 2, true)
+  view.setUint16(34, 16, true)
+  writeString(36, "data")
+  view.setUint32(40, length * numberOfChannels * 2, true)
+
+  // Audio data
+  let offset = 44
+  for (let i = 0; i < length; i++) {
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const sample = Math.max(
+        -1,
+        Math.min(1, buffer.getChannelData(channel)[i])
+      )
+      view.setInt16(
+        offset,
+        sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+        true
+      )
+      offset += 2
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: "audio/wav" })
+}
+
 // Helper function to wrap text for mind map nodes
 function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
   const avgCharWidth = fontSize * 0.6 // Approximate character width
@@ -778,6 +910,7 @@ function App() {
   const [activeInputTypes, setActiveInputTypes] = useState({})
   const [mindMapData, setMindMapData] = useState(null)
   const [isGeneratingMindMap, setIsGeneratingMindMap] = useState(false)
+  const [isProcessingFile, setIsProcessingFile] = useState(false)
   const [activeView, setActiveView] = useState("summary") // summary, questions, mindmap, transcript
 
   // Generate questions when transcript changes
@@ -1003,22 +1136,9 @@ function App() {
     setActiveView(type === "text" ? "summary" : "transcript")
   }
 
-  const handleAudioUpload = (event: any) => {
+  const handleAudioUpload = async (event: any) => {
     const file = event.target.files?.[0]
     if (file) {
-      // Check file size (4MB limit for Vercel)
-      const fileSizeInMB = file.size / (1024 * 1024)
-      if (fileSizeInMB > 4) {
-        alert(
-          `File too large (${fileSizeInMB.toFixed(
-            2
-          )}MB). Please upload a file smaller than 4MB.`
-        )
-        event.target.value = ""
-        setAudioFile(null)
-        return
-      }
-
       const ext = file.name.split(".").pop()?.toLowerCase()
       const isAudioSupported =
         ext && supportedAudioTypes.some((type) => type.replace(".", "") === ext)
@@ -1036,11 +1156,53 @@ function App() {
         setAudioFile(null)
         return
       }
-      setAudioFile(file)
-      setError("")
-      setTranscript("")
-      setInput("")
-      console.log("File uploaded:", file.name)
+
+      try {
+        setIsProcessingFile(true)
+        setError("")
+        setTranscript("")
+        setInput("")
+
+        let processedFile = file
+
+        // For video files, extract audio first
+        if (inputType === "video") {
+          console.log("Extracting audio from video...")
+          const audioBlob = await extractAudioFromVideo(file)
+          processedFile = new File([audioBlob], `${file.name}_audio.wav`, {
+            type: "audio/wav",
+          })
+          console.log("Audio extracted:", processedFile.size, "bytes")
+        }
+
+        // Compress audio if it's still too large (over 3MB to be safe)
+        const fileSizeInMB = processedFile.size / (1024 * 1024)
+        if (fileSizeInMB > 3) {
+          console.log("Compressing audio...")
+          const compressedBlob = await compressAudio(processedFile)
+          processedFile = new File(
+            [compressedBlob],
+            `${file.name}_compressed.wav`,
+            { type: "audio/wav" }
+          )
+          console.log("Audio compressed:", processedFile.size, "bytes")
+        }
+
+        setAudioFile(processedFile)
+        console.log(
+          "File processed and ready:",
+          processedFile.name,
+          processedFile.size,
+          "bytes"
+        )
+      } catch (error) {
+        console.error("Error processing file:", error)
+        setError("Error processing file. Please try again.")
+        event.target.value = ""
+        setAudioFile(null)
+      } finally {
+        setIsProcessingFile(false)
+      }
     }
   }
 
@@ -1136,8 +1298,15 @@ function App() {
             <label htmlFor="audio-file" className="audio-file-label">
               📁 Upload Audio File
             </label>
-            <div className="file-size-info">📏 Maximum file size: 4MB</div>
-            {audioFile && (
+            <div className="file-size-info">
+              🔧 Large files will be automatically compressed
+            </div>
+            {isProcessingFile && (
+              <div className="processing-info">
+                🔄 Processing file... Please wait
+              </div>
+            )}
+            {audioFile && !isProcessingFile && (
               <div className="audio-file-info">
                 🎵 {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(2)}{" "}
                 MB)
@@ -1157,8 +1326,15 @@ function App() {
             <label htmlFor="video-file" className="audio-file-label">
               📁 Upload Video File
             </label>
-            <div className="file-size-info">📏 Maximum file size: 4MB</div>
-            {audioFile && (
+            <div className="file-size-info">
+              🔧 Large files will be automatically compressed
+            </div>
+            {isProcessingFile && (
+              <div className="processing-info">
+                🔄 Processing file... Please wait
+              </div>
+            )}
+            {audioFile && !isProcessingFile && (
               <div className="audio-file-info">
                 🎬 {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(2)}{" "}
                 MB)
