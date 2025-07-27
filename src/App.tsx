@@ -442,20 +442,29 @@ function extractAudioFromVideo(
   onProgress?: (step: string, progress: string) => void
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    onProgress?.("Loading video", "Initializing...")
+
+    // Create a canvas to capture video frames and extract audio
     const video = document.createElement("video")
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
     const audioContext = new (window.AudioContext ||
       (window as any).webkitAudioContext)()
 
-    onProgress?.("Loading video", "Initializing...")
+    let audioChunks: Blob[] = []
+    let isRecording = false
+    let startTime = 0
 
     video.onloadedmetadata = () => {
       onProgress?.("Extracting audio", "Setting up audio processing...")
 
-      // Create a silent audio destination (no speakers)
+      // Set canvas size to match video
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+
+      // Create audio destination
       const audioDestination = audioContext.createMediaStreamDestination()
       const source = audioContext.createMediaElementSource(video)
-
-      // Only connect to the destination, NOT to speakers
       source.connect(audioDestination)
 
       // Check supported MIME types
@@ -488,14 +497,13 @@ function extractAudioFromVideo(
       const audioRecorder = new MediaRecorder(audioDestination.stream, {
         mimeType: selectedType,
       })
-      const audioChunks: Blob[] = []
 
       audioRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           audioChunks.push(e.data)
           onProgress?.(
             "Extracting audio",
-            `Processing... (${audioChunks.length} chunks)`
+            `Processing... (${audioChunks.length} chunks, ${e.data.size} bytes)`
           )
         }
       }
@@ -524,35 +532,52 @@ function extractAudioFromVideo(
         resolve(videoFile)
       }
 
-      audioRecorder.start(1000) // Collect data every second
+      // Start recording when video starts playing
+      video.onplay = () => {
+        if (!isRecording) {
+          isRecording = true
+          startTime = Date.now()
+          audioRecorder.start(100) // Collect data every 100ms for better capture
+          onProgress?.("Extracting audio", "Recording started...")
+        }
+      }
 
-      // Set video to muted to prevent any sound
+      // Set video to muted and start playing
       video.muted = true
       video.volume = 0
       video.play()
 
       // Update progress based on video time
       const updateProgress = () => {
-        if (!video.ended && !video.paused) {
+        if (!video.ended && !video.paused && isRecording) {
           const progress = Math.round(
             (video.currentTime / video.duration) * 100
           )
-          onProgress?.("Extracting audio", `${progress}% complete`)
+          const elapsed = Date.now() - startTime
+          onProgress?.(
+            "Extracting audio",
+            `${progress}% complete (${elapsed}ms elapsed)`
+          )
         }
       }
 
       video.ontimeupdate = updateProgress
 
       video.onended = () => {
-        audioRecorder.stop()
+        if (isRecording) {
+          audioRecorder.stop()
+          isRecording = false
+        }
       }
 
-      // Fallback: if video ends without stopping recorder, stop it manually
+      // Fallback: stop recording after video duration + buffer
       setTimeout(() => {
-        if (audioRecorder.state === "recording") {
+        if (isRecording && audioRecorder.state === "recording") {
+          console.log("Stopping recording via timeout")
           audioRecorder.stop()
+          isRecording = false
         }
-      }, video.duration * 1000 + 2000) // Add 2 seconds buffer
+      }, video.duration * 1000 + 3000) // Add 3 seconds buffer
     }
 
     video.onerror = (error) => {
