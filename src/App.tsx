@@ -437,13 +437,20 @@ Content to analyze:
 }
 
 // Helper function to extract audio from video file
-function extractAudioFromVideo(videoFile: File): Promise<Blob> {
+function extractAudioFromVideo(
+  videoFile: File,
+  onProgress?: (step: string, progress: string) => void
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video")
     const audioContext = new (window.AudioContext ||
       (window as any).webkitAudioContext)()
 
+    onProgress?.("Loading video", "Initializing...")
+
     video.onloadedmetadata = () => {
+      onProgress?.("Extracting audio", "Setting up audio processing...")
+
       // Create a silent audio destination (no speakers)
       const audioDestination = audioContext.createMediaStreamDestination()
       const source = audioContext.createMediaElementSource(video)
@@ -457,9 +464,14 @@ function extractAudioFromVideo(videoFile: File): Promise<Blob> {
 
       audioRecorder.ondataavailable = (e) => {
         audioChunks.push(e.data)
+        onProgress?.(
+          "Extracting audio",
+          `Processing... (${audioChunks.length} chunks)`
+        )
       }
 
       audioRecorder.onstop = () => {
+        onProgress?.("Extracting audio", "Finalizing...")
         const audioBlob = new Blob(audioChunks, { type: "audio/wav" })
         resolve(audioBlob)
       }
@@ -470,6 +482,18 @@ function extractAudioFromVideo(videoFile: File): Promise<Blob> {
       video.muted = true
       video.volume = 0
       video.play()
+
+      // Update progress based on video time
+      const updateProgress = () => {
+        if (!video.ended && !video.paused) {
+          const progress = Math.round(
+            (video.currentTime / video.duration) * 100
+          )
+          onProgress?.("Extracting audio", `${progress}% complete`)
+        }
+      }
+
+      video.ontimeupdate = updateProgress
 
       video.onended = () => {
         audioRecorder.stop()
@@ -482,17 +506,24 @@ function extractAudioFromVideo(videoFile: File): Promise<Blob> {
 }
 
 // Helper function to compress audio
-function compressAudio(audioBlob: Blob): Promise<Blob> {
+function compressAudio(
+  audioBlob: Blob,
+  onProgress?: (step: string, progress: string) => void
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const audioContext = new (window.AudioContext ||
       (window as any).webkitAudioContext)()
     const fileReader = new FileReader()
 
+    onProgress?.("Compressing audio", "Reading file...")
+
     fileReader.onload = async (e) => {
       try {
+        onProgress?.("Compressing audio", "Decoding audio data...")
         const arrayBuffer = e.target?.result as ArrayBuffer
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
 
+        onProgress?.("Compressing audio", "Processing audio...")
         // Create offline context for processing
         const offlineContext = new OfflineAudioContext(
           1, // mono
@@ -505,8 +536,10 @@ function compressAudio(audioBlob: Blob): Promise<Blob> {
         source.connect(offlineContext.destination)
         source.start()
 
+        onProgress?.("Compressing audio", "Rendering compressed audio...")
         const renderedBuffer = await offlineContext.startRendering()
 
+        onProgress?.("Compressing audio", "Converting to WAV format...")
         // Convert to WAV format
         const wavBlob = audioBufferToWav(renderedBuffer)
         resolve(wavBlob)
@@ -912,6 +945,8 @@ function App() {
   const [mindMapData, setMindMapData] = useState(null)
   const [isGeneratingMindMap, setIsGeneratingMindMap] = useState(false)
   const [isProcessingFile, setIsProcessingFile] = useState(false)
+  const [processingProgress, setProcessingProgress] = useState("")
+  const [processingStep, setProcessingStep] = useState("")
   const [activeView, setActiveView] = useState("summary") // summary, questions, mindmap, transcript
 
   // Generate questions when transcript changes
@@ -1166,10 +1201,16 @@ function App() {
 
         let processedFile = file
 
+        // Progress callback function
+        const updateProgress = (step: string, progress: string) => {
+          setProcessingStep(step)
+          setProcessingProgress(progress)
+        }
+
         // For video files, extract audio first
         if (inputType === "video") {
           console.log("Extracting audio from video...")
-          const audioBlob = await extractAudioFromVideo(file)
+          const audioBlob = await extractAudioFromVideo(file, updateProgress)
           processedFile = new File([audioBlob], `${file.name}_audio.wav`, {
             type: "audio/wav",
           })
@@ -1180,7 +1221,10 @@ function App() {
         const fileSizeInMB = processedFile.size / (1024 * 1024)
         if (fileSizeInMB > 3) {
           console.log("Compressing audio...")
-          const compressedBlob = await compressAudio(processedFile)
+          const compressedBlob = await compressAudio(
+            processedFile,
+            updateProgress
+          )
           processedFile = new File(
             [compressedBlob],
             `${file.name}_compressed.wav`,
@@ -1203,6 +1247,8 @@ function App() {
         setAudioFile(null)
       } finally {
         setIsProcessingFile(false)
+        setProcessingStep("")
+        setProcessingProgress("")
       }
     }
   }
@@ -1304,7 +1350,8 @@ function App() {
             </div>
             {isProcessingFile && (
               <div className="processing-info">
-                🔄 Processing file... Please wait
+                <div className="processing-step">🔄 {processingStep}</div>
+                <div className="processing-progress">{processingProgress}</div>
               </div>
             )}
             {audioFile && !isProcessingFile && (
@@ -1332,7 +1379,8 @@ function App() {
             </div>
             {isProcessingFile && (
               <div className="processing-info">
-                🔄 Processing file... Please wait
+                <div className="processing-step">🔄 {processingStep}</div>
+                <div className="processing-progress">{processingProgress}</div>
               </div>
             )}
             {audioFile && !isProcessingFile && (

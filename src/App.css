@@ -78,6 +78,16 @@ h1 {
   animation: pulse 1.5s infinite;
 }
 
+.processing-step {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.processing-progress {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
 @keyframes pulse {
   0% {
     opacity: 1;
