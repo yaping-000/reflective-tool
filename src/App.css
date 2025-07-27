@@ -55,6 +55,17 @@ h1 {
   color: #666;
 }
 
+.file-size-info {
+  margin-top: 0.5rem;
+  padding: 6px 10px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #856404;
+  text-align: center;
+}
+
 .or-divider {
   text-align: center;
   margin: 1rem 0;

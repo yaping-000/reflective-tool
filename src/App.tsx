@@ -1006,6 +1006,19 @@ function App() {
   const handleAudioUpload = (event: any) => {
     const file = event.target.files?.[0]
     if (file) {
+      // Check file size (4MB limit for Vercel)
+      const fileSizeInMB = file.size / (1024 * 1024)
+      if (fileSizeInMB > 4) {
+        alert(
+          `File too large (${fileSizeInMB.toFixed(
+            2
+          )}MB). Please upload a file smaller than 4MB.`
+        )
+        event.target.value = ""
+        setAudioFile(null)
+        return
+      }
+
       const ext = file.name.split(".").pop()?.toLowerCase()
       const isAudioSupported =
         ext && supportedAudioTypes.some((type) => type.replace(".", "") === ext)
@@ -1041,12 +1054,22 @@ function App() {
         formData.append("file", audioFile)
         const backendUrl =
           process.env.REACT_APP_BACKEND_URL || "http://localhost:3001"
-        const response = await fetch(`${backendUrl}/api/transcribe`, {
+        // For Vercel serverless functions, the path is already included in the URL
+        const apiUrl = backendUrl.endsWith("/api")
+          ? `${backendUrl}/transcribe`
+          : `${backendUrl}/api/transcribe`
+        const response = await fetch(apiUrl, {
           method: "POST",
           body: formData,
         })
         if (!response.ok) {
           const errorData = await response.json()
+          if (response.status === 413) {
+            throw new Error(
+              errorData.message ||
+                "File too large. Please upload a file smaller than 4MB."
+            )
+          }
           throw new Error(errorData.error || "Failed to transcribe file")
         }
         const data = await response.json()
@@ -1113,6 +1136,7 @@ function App() {
             <label htmlFor="audio-file" className="audio-file-label">
               📁 Upload Audio File
             </label>
+            <div className="file-size-info">📏 Maximum file size: 4MB</div>
             {audioFile && (
               <div className="audio-file-info">
                 🎵 {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(2)}{" "}
@@ -1133,6 +1157,7 @@ function App() {
             <label htmlFor="video-file" className="audio-file-label">
               📁 Upload Video File
             </label>
+            <div className="file-size-info">📏 Maximum file size: 4MB</div>
             {audioFile && (
               <div className="audio-file-info">
                 🎬 {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(2)}{" "}
