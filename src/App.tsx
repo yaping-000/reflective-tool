@@ -443,13 +443,10 @@ function extractAudioFromVideo(videoFile: File): Promise<Blob> {
     const canvas = document.createElement("canvas")
     const audioContext = new (window.AudioContext ||
       (window as any).webkitAudioContext)()
-    const mediaRecorder = new MediaRecorder(canvas.captureStream())
-    const chunks: Blob[] = []
 
     video.onloadedmetadata = () => {
       canvas.width = 1
       canvas.height = 1
-      const stream = canvas.captureStream()
       const audioDestination = audioContext.createMediaStreamDestination()
       const source = audioContext.createMediaElementSource(video)
       source.connect(audioDestination)
